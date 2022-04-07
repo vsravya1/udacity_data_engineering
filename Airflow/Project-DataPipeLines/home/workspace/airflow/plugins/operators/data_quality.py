@@ -18,28 +18,22 @@ class DataQualityOperator(BaseOperator):
     @apply_defaults
     def __init__(self,
                  redshift_conn_id="",
-                 data_check_query=[],
-                 table=[],
-                 expected_result=[],
+                 tables = [],
                  *args, **kwargs):
 
         super(DataQualityOperator, self).__init__(*args, **kwargs)
-        self.redshift_conn_id=redshift_conn_id
-        self.data_check_query=data_check_query
-        self.table=table
-        self.expected_result=expected_result
+        self.redshift_conn_id = redshift_conn_id
+        self.tables = tables
 
     def execute(self, context):
-        self.log.info('Running data quality checks')
+        redshift_hook = PostgresHook(postgres_conn_id = self.redshift_conn_id)
         
-        self.log.info('Fetching redshift hook')
-        redshift = PostgresHook(postgres_conn_id=self.redshift_conn_id)
-        
-        checks = zip(self.data_check_query, self.table, self.expected_result)
-        for check in checks:
-            try:
-                redshift.run(check[0].format(check[1])) == check[2]
-                self.log.info('Data quality check passed.')
-            except:
-                self.log.info('Data quality check failed.')
-                raise AssertionError('Data quality check failed.')
+        for table in self.tables:
+            
+            self.log.info(f"Data quality validation is in progress for table : {table}")
+            records = redshift_hook.get_records(f"select count(*) from {table};")
+
+            if len(records) < 1 or len(records[0]) < 1 or records[0][0] < 1:
+                self.log.error(f"Data Quality validation failed for table : {table}.")
+                #raise ValueError(f"Data Quality validation failed for table : {table}")
+            self.log.info(f"Data Quality Validation completed for table : {table}!!!")    
